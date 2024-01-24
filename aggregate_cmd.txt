@@ -1,0 +1,137 @@
+db.collection.aggregate([
+    // Pipeline stages
+    { $match: { field: value } },
+    { $group: { _id: "$field", count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 10 }
+])
+
+Some aggregate KEYWORD : 
+$unwind, $group, $match, $sum, $avg, $push, $$ROOT, $sort, $size, filter, addToSet 
+
+syntax
+db.collection.aggregate([Pipeline], [options])
+
+1.db.teachers.aggregate({ $match: {gender:"female"} });
+>>[
+  { _id: 2, name: 'Jane Smith', age: 40, gender: 'female' },
+  { _id: 4, name: 'Emily Williams', age: 30, gender: 'female' },
+  { _id: 6, name: 'Emma Jones', age: 33, gender: 'female' },]
+
+2. Group (in group _id is compulsory) , jo jo field chaiye ..define it.
+(i)group by age , _id = age
+db.teachers.aggregate([ {$group: {_id:"$age" } } ]);
+>>[
+  { _id: 39 }, { _id: 36 },
+  { _id: 43 }, { _id: 44 },]
+
+(ii)in group show age with their name:
+db.teachers.aggregate([ {$group: {_id:"$age", names: {$push: "$name"} } } ]);
+>>[
+  { _id: 34, names: [ 'Joseph Thomas', 'Harper King' ] },
+  {
+    _id: 36,
+    names: [ 'David Wilson', 'Charles White', 'Brian Young' ]
+  },
+  { _id: 32, names: [ 'Sophia Moore' ] },
+  { _id: 44, names: [ 'Daniel Martin', 'Kevin Hall' ] },
+  {
+    _id: 38,
+    names: [ 'Robert Brown', 'Evelyn Thompson', 'Zoey Allen' ]
+  },]
+
+(iii) $$ROOT -> it is reference to current document being processed in the Pipeline, which represent complete document
+db.teachers.aggregate([ {$group: {_id:"$age", puraDoc:{$push:"$$ROOT"}  } } ])
+>>[
+  {
+    _id: 45,
+    puraDoc: [ { _id: 3, name: 'Michael Johnson', age: 45, gender: 'male' } ]
+  },
+  {
+    _id: 32,
+    puraDoc: [ { _id: 10, name: 'Sophia Moore', age: 32, gender: 'female' } ]
+  },
+  {
+    _id: 37,
+    puraDoc: [
+      { _id: 7, name: 'William Davis', age: 37, gender: 'male' },
+      { _id: 19, name: 'Matthew Garcia', age: 37, gender: 'male' },
+      { _id: 25, name: 'Christopher Lee', age: 37, gender: 'male' }
+    ]
+  },]
+
+(iv) $sum -> the value of $sum is 1 , which mean that for each  document in the group, the value of "number"  will be increament by 1.
+db.teachers.aggregate([ {$match:{gender: "male"}}, {$group: {_id:"$age", count:{$sum:1} } }])  (2 pipeline use)
+>> [
+  { _id: 44, count: 2 },
+  { _id: 34, count: 1 },
+  { _id: 45, count: 1 },]
+
+(v) $sort                                                                                 sort need field (count) to sort         
+db.teachers.aggregate([ {$match:{gender: "male"}}, {$group: {_id:"$age", count:{$sum:1}}}, {$sort: {count:1} } ]) (3pipeline)
+>>[
+  { _id: 38, count: 1 },
+  { _id: 40, count: 1 },
+  { _id: 34, count: 1 },]
+
+(vi) _id =null -> it mean not group by any field, just bring them all in one group and give one result
+db.teachers.aggregate([ {$match:{gender: "male"}}, {$group: {_id:"$age", count:{$sum:1}}}, {$sort: {count:1} }, {$group: {_id:null, maxcountage: {$max:"$count"} } } ])  (4-pipeline)
+>> [ { _id: null, maxcountage: 3 } ]
+
+dusra eg: 
+    ->  db.teachers.aggregate([{ $group:{_id:null, namess: {$push:"$name"} } }])
+    >> [ {
+        _id: null,
+        namess: [
+                'John Doe',         'Jane Smith',
+                'Michael Johnson',  'Emily Williams',
+                'Robert Brown',     'Emma Jones',
+                ]
+        } ]
+
+
+(vii) $unwind -> it open array in single new document (it help to prevent nested array )
+eg: {name:vivek, Hobby: ["cricket", "footbal"]}
+    -> aggregate([{$unwind: "$Hobby"}])
+    unwind make uper document in below format.(open the array in new document)
+    >> [{name:vivek, Hobby: "cricket"}, 
+        {name:vivek, Hobby: "footbal"}]
+
+
+(viii) ifNull
+-> db.students.aggregate([{$group:{_id: null, count: {$sum: { $size: "$Hobbies" } } } } ])
+ this may give error , if all document not have Hobbies field then it will unable to find size
+
+                                                                    {$ifNull: [expression], [replacementExpression]}
+-> db.students.aggregate([{$group:{_id: null, count: {$sum: { $size: {$ifNull: ["$Hobbies", []] }} }}} ])
+
+
+(ix) addToSet -> remove duplicate
+-> db.teachers.aggregate([{ $group:{_id:null, namess: {$addToSet: "$name"} } }])
+>>[{
+    _id: null,
+    namess: [
+      'Robert Brown',    'Zoey Allen',
+      'Abigail Harris',  'William Davis',
+      'Emily Williams',  'Charles White',]
+  }]
+
+(x) {
+    $filter:
+      {
+         input: <array>,
+         cond: <expression>,
+         as: <string>,
+         limit: <number expression>
+      }
+    }
+input: <array>,
+cond -> An expression that resolves to a boolean value used to determine if an element should be included in the output array. The expression references each element of the input array individually with the variable name specified in as.
+as -> Optional A name for the variable that represents each individual element of the input array. If no name is specified, the variable name defaults to this.
+limit -> Optional. You cannot specify a limit less than 1.
+
+cond: {$gt: ["age", 20] }
+
+->
+
+(xi) project
